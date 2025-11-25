@@ -24,15 +24,18 @@ namespace BookhouseSMTPtest
             
 
             con.SMTP_SENDERMAIL = txtSMTP_SENDERMAIL.Text;
-            con.SMTP_SENDERMAILNAME = txtSMTP_SENDERMAIL.Text;
+            con.SMTP_SENDERMAILNAME = txtSMTP_SENDERMAILNAME.Text;
             con.SMTP_USERNAME = txtSMTP_USERNAME.Text;
             con.SMTP_PASSWORD = txtSMTP_PASSWORD.Text;
             con.SMTP_USESSL = txtSMTP_USESSL.Text;
             con.SMTP_PATH = txtSMTP_PATH.Text;
             con.SMTP_PORT = txtSMTP_PORT.Text;
 
-
-            var strarray = this.textBox1.Text.Split(',').ToList();
+            var strarray = this.textBox1.Text
+                .Split(new[] { ',', ';', '\n' }, StringSplitOptions.RemoveEmptyEntries)
+                .Select(addr => addr.Trim())
+                .Where(addr => !string.IsNullOrWhiteSpace(addr))
+                .ToList();
             var b = SmtpHelper.SendMail(con, strarray, "GaryTest", "test", out Error);
             label1.Text = b.ToString();
             label2.Text = Error;
