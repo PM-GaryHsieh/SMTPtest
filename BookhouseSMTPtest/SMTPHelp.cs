@@ -73,7 +73,13 @@ namespace BookhouseSMTPtest
             string smtp_password = "";
             string smtp_usessl = string.Empty;
 
-            if (!smtpConfig.SMTP_PATH.Equals(string.Empty))
+            if (smtpConfig == null)
+            {
+                msg = "SMTP configuration is required.";
+                return false;
+            }
+
+            if (!string.IsNullOrWhiteSpace(smtpConfig.SMTP_PATH))
             {
                 smtp_host = smtpConfig.SMTP_PATH;
                 smtp_port = smtpConfig.SMTP_PORT;
@@ -84,71 +90,121 @@ namespace BookhouseSMTPtest
                 smtp_password = smtpConfig.SMTP_PASSWORD;
                 smtp_usessl = smtpConfig.SMTP_USESSL;
             }
-            string fromEmail = smtp_sendermail;
-            string fromName = smtp_sendermailname;
 
-            MailAddress from = new MailAddress(fromEmail, fromName, Encoding.Default);
-
-            MailMessage mail = new MailMessage();
-
-            mail.From = from;
-
-            if (toEmail != null && toEmail.Count() > 0)
+            if (string.IsNullOrWhiteSpace(smtp_host))
             {
-                foreach (string addr in toEmail)
-                {
-                    mail.To.Add(new MailAddress(addr));
-                }
-            }
-            else
-            {
-                msg = "無收件者信箱";
+                msg = "SMTP host is required.";
                 return false;
             }
 
-            if (ccEmail != null && ccEmail.Count() > 0)
+            if (!int.TryParse(smtp_port, out int parsedPort))
             {
-                foreach (string addr in ccEmail)
-                {
-                    mail.CC.Add(new MailAddress(addr));
-                }
-            }
-
-            if (BccEmail != null && BccEmail.Count() > 0)
-            {
-                foreach (string addr in BccEmail)
-                {
-                    mail.Bcc.Add(new MailAddress(addr));
-                }
-            }
-
-            mail.SubjectEncoding = Encoding.Default;
-            mail.Subject = subject;
-            mail.BodyEncoding = Encoding.Default;
-            mail.Body = content;
-            mail.IsBodyHtml = true;
-            mail.Priority = MailPriority.Normal;
-
-            SmtpClient client = new SmtpClient();
-            client.Host = smtp_host;
-            client.Timeout = 200000;
-            client.UseDefaultCredentials = true;
-            client.Port = int.Parse(smtp_port);
-            client.EnableSsl = smtp_usessl.ToUpper().Equals("TRUE") || smtp_usessl.Equals("1");
-
-            if (smtp_username != "")
-            {
-                client.Credentials = new NetworkCredential(smtp_username, smtp_password);
-            }
-            try
-            {
-                client.Send(mail);
-                return true;
-            }
-            catch (Exception ex)
-            {
-                msg = ex.ToString();
+                msg = "Invalid SMTP port.";
                 return false;
+            }
+
+            if (parsedPort <= 0 || parsedPort > 65535)
+            {
+                msg = "SMTP port must be between 1 and 65535.";
+                return false;
+            }
+
+            if (string.IsNullOrWhiteSpace(smtp_sendermail))
+            {
+                msg = "Sender email is required.";
+                return false;
+            }
+
+            MailAddress from = new MailAddress(smtp_sendermail, smtp_sendermailname, Encoding.Default);
+
+            using (MailMessage mail = new MailMessage())
+            {
+                mail.From = from;
+
+                if (toEmail != null && toEmail.Count() > 0)
+                {
+                    foreach (string addr in toEmail)
+                    {
+                        try
+                        {
+                            mail.To.Add(new MailAddress(addr));
+                        }
+                        catch (FormatException)
+                        {
+                            msg = $"Invalid recipient address: {addr}";
+                            return false;
+                        }
+                    }
+                }
+                else
+                {
+                    msg = "無收件者信箱";
+                    return false;
+                }
+
+                if (ccEmail != null && ccEmail.Count() > 0)
+                {
+                    foreach (string addr in ccEmail)
+                    {
+                        try
+                        {
+                            mail.CC.Add(new MailAddress(addr));
+                        }
+                        catch (FormatException)
+                        {
+                            msg = $"Invalid CC address: {addr}";
+                            return false;
+                        }
+                    }
+                }
+
+                if (BccEmail != null && BccEmail.Count() > 0)
+                {
+                    foreach (string addr in BccEmail)
+                    {
+                        try
+                        {
+                            mail.Bcc.Add(new MailAddress(addr));
+                        }
+                        catch (FormatException)
+                        {
+                            msg = $"Invalid BCC address: {addr}";
+                            return false;
+                        }
+                    }
+                }
+
+                mail.SubjectEncoding = Encoding.Default;
+                mail.Subject = subject;
+                mail.BodyEncoding = Encoding.Default;
+                mail.Body = content;
+                mail.IsBodyHtml = true;
+                mail.Priority = MailPriority.Normal;
+
+                using (SmtpClient client = new SmtpClient())
+                {
+                    client.Host = smtp_host;
+                    client.Timeout = 200000;
+                    client.UseDefaultCredentials = false;
+                    client.Port = parsedPort;
+                    client.EnableSsl = smtp_usessl.ToUpper().Equals("TRUE") || smtp_usessl.Equals("1");
+
+                    if (!string.IsNullOrWhiteSpace(smtp_username))
+                    {
+                        client.Credentials = new NetworkCredential(smtp_username, smtp_password);
+                    }
+
+                    try
+                    {
+                        client.Send(mail);
+                        return true;
+                    }
+                    catch (Exception ex)
+                    {
+                        msg = ex.ToString();
+                        return false;
+                    }
+                }
             }
         }
 
